@@ -124,12 +124,22 @@ Deno.serve(async (req) => {
   }
 
   // Insert debts
-  const { error: materializedDebtsCreateError } = await supabase.from("materialized_debts").insert(debts.map(debt => ({
-    debt_id: debt.id,
-    cycle_id: createdCycle.id,
-    amount: debt.amount,
-    status: 'PENDING',
-  })));
+  const mappedDebts = await Promise.all(debts.map(async debt => {
+    let amount = debt.amount;
+
+    if (debt.currency === 'USD') {
+      // Calculate exchange
+      amount = await calculateUSDToBRL(debt.amount);
+    }
+
+    return {
+      debt_id: debt.id,
+      cycle_id: createdCycle.id,
+      amount,
+      status: 'PENDING',
+    }
+  }));
+  const { error: materializedDebtsCreateError } = await supabase.from("materialized_debts").insert(mappedDebts);
 
   if (materializedDebtsCreateError) {
     await supabase.from("materialized_cycles").delete().eq('id', createdCycle.id);

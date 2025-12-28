@@ -22,6 +22,7 @@ export type FormValues = {
   installmentNumber: number;
   purchasedAt: string;
   firstPaymentDate: string;
+  currency: string;
 };
 
 type Props = {
@@ -78,6 +79,7 @@ export const DebtFormModal = ({
         installmentNumber: existingDebt.installments,
         firstPaymentDate: existingDebt.first_payment_date,
         purchasedAt: existingDebt.purchased_at,
+        currency: existingDebt.currency,
       });
     }
   }, [existingDebt, form]);
@@ -124,6 +126,21 @@ export const DebtFormModal = ({
               name="name"
               {...form.register("name", { required: true })}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="debt-currency">Currency</Label>
+
+            <select
+              id="debt-currency"
+              name="debt-currency"
+              className="w-full rounded-md border border-input bg-background px-3 py-2"
+              {...form.register("currency", {
+                required: true,
+              })}
+            >
+              <option value="BRL">BRL</option>
+              <option value="USD">USD</option>
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
