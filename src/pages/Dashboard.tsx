@@ -395,8 +395,23 @@ export default function Dashboard() {
     }
 
     const cycleDate = new Date(startDate);
-    const mappedDebts: Array<DashboardDebt> = debts.map<DashboardDebt>(
-      (debt) => {
+    const debtsWithBRLAmount = await Promise.all(
+      debts.map(async (debt) => {
+        if (debt.currency !== "USD") return debt;
+
+        const data = await calculateUSDToBRLFunction.invoke({
+          amountInUSDCents: debt.amount,
+        });
+
+        const amountInBRLCents = data.amountInBRLCents as number;
+        return {
+          ...debt,
+          amount: amountInBRLCents,
+        };
+      }),
+    );
+    const mappedDebts: Array<DashboardDebt> =
+      debtsWithBRLAmount.map<DashboardDebt>((debt) => {
         const firstPaymentDate = new Date(debt.first_payment_date);
         const installmentNumber =
           differenceInCalendarMonths(cycleDate, firstPaymentDate) + 1;
@@ -412,8 +427,7 @@ export default function Dashboard() {
             name: debt.debt_owner.name,
           },
         };
-      },
-    );
+      });
 
     const incomesWithBRLAmount = await Promise.all(
       incomes.map(async (income) => {

@@ -69,6 +69,7 @@ export default function Debts() {
           first_payment_date,
           purchased_at,
           created_at,
+          currency,
           debt_owner:debt_owners!inner (
             id,
             name,
@@ -205,6 +206,7 @@ export default function Debts() {
       installments: values.installmentNumber,
       purchased_at: values.purchasedAt,
       first_payment_date: values.firstPaymentDate,
+      currency: values.currency,
     });
 
     if (error) {
@@ -237,6 +239,7 @@ export default function Debts() {
         installments: values.installmentNumber,
         purchased_at: values.purchasedAt,
         first_payment_date: values.firstPaymentDate,
+        currency: values.currency,
       })
       .eq("id", editDebtId);
 
@@ -369,9 +372,13 @@ export default function Debts() {
             <TableRow key={debt.id}>
               <TableCell>{debt.name}</TableCell>
               <TableCell>{debt.debt_owner.name}</TableCell>
-              <TableCell>{debt.amount}</TableCell>
+              <TableCell>
+                {debt.amount} {debt.currency}
+              </TableCell>
               <TableCell>{debt.installments}</TableCell>
-              <TableCell>{debt.totalAmount}</TableCell>
+              <TableCell>
+                {debt.totalAmount} {debt.currency}
+              </TableCell>
               <TableCell>
                 {format(new Date(debt.purchased_at), "MMM dd, yyyy")}
               </TableCell>

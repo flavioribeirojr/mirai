@@ -91,6 +91,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          currency: string
           debt_owner_id: string
           end_date: string | null
           first_payment_date: string
@@ -104,6 +105,7 @@ export type Database = {
         Insert: {
           amount?: number
           created_at?: string
+          currency?: string
           debt_owner_id?: string
           end_date?: string | null
           first_payment_date: string
@@ -117,6 +119,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          currency?: string
           debt_owner_id?: string
           end_date?: string | null
           first_payment_date?: string
