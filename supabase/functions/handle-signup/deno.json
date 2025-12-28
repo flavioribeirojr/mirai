@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "supabase-edge": "jsr:@supabase/functions-js/edge-runtime.d.ts",
+    "svix": "npm:svix",
+    "supabase-js": "npm:@supabase/supabase-js",
+    "clerk": "npm:@clerk/clerk-sdk-node"
+  }
+}

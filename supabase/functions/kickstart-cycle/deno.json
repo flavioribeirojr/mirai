@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "supabase-edge": "jsr:@supabase/functions-js/edge-runtime.d.ts",
+    "supabase-js": "npm:@supabase/supabase-js",
+    "zod": "npm:zod",
+    "date-fns": "npm:date-fns",
+    "clerk": "npm:@clerk/clerk-sdk-node",
+    "clerk-backend": "npm:@clerk/backend",
+    "jsonwebtoken": "npm:jsonwebtoken",
+    "jose": "npm:jose"
+  }
+}
