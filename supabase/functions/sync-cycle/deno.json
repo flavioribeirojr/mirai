@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "date-fns": "npm:date-fns",
+    "supabase-js": "npm:@supabase/supabase-js"
+  }
+}
