@@ -97,9 +97,10 @@ export type Database = {
           first_payment_date: string
           has_end: boolean
           id: string
-          installments: number
+          installments: number | null
           name: string
           purchased_at: string | null
+          reimbursement_income_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -111,9 +112,10 @@ export type Database = {
           first_payment_date: string
           has_end?: boolean
           id?: string
-          installments: number
+          installments?: number | null
           name: string
           purchased_at?: string | null
+          reimbursement_income_id?: string | null
           workspace_id?: string
         }
         Update: {
@@ -125,9 +127,10 @@ export type Database = {
           first_payment_date?: string
           has_end?: boolean
           id?: string
-          installments?: number
+          installments?: number | null
           name?: string
           purchased_at?: string | null
+          reimbursement_income_id?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -136,6 +139,13 @@ export type Database = {
             columns: ["debt_owner_id"]
             isOneToOne: false
             referencedRelation: "debt_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debts_reimbursement_income_id_fkey"
+            columns: ["reimbursement_income_id"]
+            isOneToOne: false
+            referencedRelation: "incomes"
             referencedColumns: ["id"]
           },
           {

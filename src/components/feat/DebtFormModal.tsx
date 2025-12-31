@@ -1,7 +1,7 @@
 import { useSupabaseClient } from "@/integrations/supabase/client";
 import { centsToRealAmountNotFormatted } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,15 +14,19 @@ import { Plus } from "lucide-react";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { useForm } from "react-hook-form";
+import { Switch } from "../ui/switch";
 
 export type FormValues = {
   ownerId: string;
   name: string;
   amount: number;
-  installmentNumber: number;
+  installmentNumber?: number;
   purchasedAt: string;
   firstPaymentDate: string;
   currency: string;
+  hasEnd: boolean;
+  hasReimbursement: boolean;
+  payerId?: string; // For debts with reimbursement
 };
 
 type Props = {
@@ -35,6 +39,11 @@ type Props = {
     name: string;
     type: string;
   }[];
+  incomePayers: {
+    id: string;
+    name: string;
+    type: string;
+  }[];
 };
 
 export const DebtFormModal = ({
@@ -43,6 +52,7 @@ export const DebtFormModal = ({
   onSubmit,
   isOpen,
   onOpenChanged,
+  incomePayers,
 }: Props) => {
   const supabase = useSupabaseClient();
   const { data: existingDebt } = useQuery({
@@ -53,7 +63,14 @@ export const DebtFormModal = ({
 
       const { data, error } = await supabase
         .from("debts")
-        .select()
+        .select(
+          `
+          *,
+          reimbursement_income:incomes!left (
+            payer_id
+          )
+        `,
+        )
         .eq("id", debtId);
 
       if (error) {
@@ -68,7 +85,12 @@ export const DebtFormModal = ({
       return debt;
     },
   });
-  const form = useForm<FormValues>();
+  const form = useForm<FormValues>({
+    defaultValues: {
+      hasEnd: true,
+      hasReimbursement: false,
+    },
+  });
 
   useEffect(() => {
     if (existingDebt) {
@@ -80,6 +102,11 @@ export const DebtFormModal = ({
         firstPaymentDate: existingDebt.first_payment_date,
         purchasedAt: existingDebt.purchased_at,
         currency: existingDebt.currency,
+        hasEnd: existingDebt.has_end,
+        ...(existingDebt.reimbursement_income && {
+          payerId: existingDebt.reimbursement_income.payer_id,
+          hasReimbursement: true,
+        }),
       });
     }
   }, [existingDebt, form]);
@@ -89,6 +116,16 @@ export const DebtFormModal = ({
       form.reset();
     }
   }, [debtId, form]);
+
+  const hasEnd = form.watch("hasEnd");
+  const hasReimbursement = form.watch("hasReimbursement");
+
+  function triggerSubmit(values: FormValues) {
+    onSubmit({
+      ...values,
+      payerId: values.hasReimbursement ? values.payerId : undefined,
+    });
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChanged}>
@@ -102,7 +139,7 @@ export const DebtFormModal = ({
         <DialogHeader>
           <DialogTitle>Add New Debt</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(triggerSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="debt-owner">Debt Owner</Label>
             <select
@@ -142,6 +179,17 @@ export const DebtFormModal = ({
               <option value="USD">USD</option>
             </select>
           </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={hasEnd}
+                onCheckedChange={(checked) => form.setValue("hasEnd", checked)}
+              />
+              <Label className="cursor-pointer">Debt has end date</Label>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Amount per Installment</Label>
@@ -157,21 +205,23 @@ export const DebtFormModal = ({
                 })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="installments">Number of Installments</Label>
-              <Input
-                id="installments"
-                name="installments"
-                type="number"
-                min="1"
-                defaultValue="1"
-                {...form.register("installmentNumber", {
-                  required: true,
-                  min: 1,
-                  valueAsNumber: true,
-                })}
-              />
-            </div>
+            {hasEnd && (
+              <div className="space-y-2">
+                <Label htmlFor="installments">Number of Installments</Label>
+                <Input
+                  id="installments"
+                  name="installments"
+                  type="number"
+                  min="1"
+                  defaultValue="1"
+                  {...form.register("installmentNumber", {
+                    required: true,
+                    min: 1,
+                    valueAsNumber: true,
+                  })}
+                />
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -198,6 +248,40 @@ export const DebtFormModal = ({
                 })}
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center">
+              <Switch
+                checked={hasReimbursement}
+                onCheckedChange={(checked) =>
+                  form.setValue("hasReimbursement", checked)
+                }
+              />
+              <Label className="cursor-pointer ml-2">Link reimbursement</Label>
+            </div>
+
+            {hasReimbursement && (
+              <div className="p-5 bg-gray-200 rounded-xl">
+                <div>
+                  <Label htmlFor="income-payer">Income Payer</Label>
+                  <select
+                    id="income-payer"
+                    name="income_payer_id"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2"
+                    {...form.register("payerId", {
+                      required: true,
+                    })}
+                  >
+                    <option value="">Select payer...</option>
+                    {incomePayers.map((payer) => (
+                      <option key={payer.id} value={payer.id}>
+                        {payer.name} ({payer.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
           <Button type="submit" className="w-full">
             {debtId ? "Update Debt" : "Add Debt"}
