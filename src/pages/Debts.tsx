@@ -117,6 +117,28 @@ export default function Debts() {
       return data;
     },
   });
+  const { data: incomePayersData } = useQuery({
+    queryKey: ["getIncomesPayers", user?.id],
+    queryFn: async () => {
+      if (!user) {
+        return null;
+      }
+
+      const { data, error } = await supabaseClient
+        .from("income_payers")
+        .select("*")
+        .eq("workspace_id", user.workspace_id);
+
+      if (error) throw error;
+
+      return data;
+    },
+  });
+  const incomePayers = useMemo(() => {
+    if (!incomePayersData) return [];
+
+    return incomePayersData;
+  }, [incomePayersData]);
 
   const parsedDebts = useMemo(() => {
     if (!debts) {
@@ -198,16 +220,51 @@ export default function Debts() {
       return;
     }
 
-    const { error } = await supabaseClient.from("debts").insert({
-      workspace_id: user.workspace_id,
-      debt_owner_id: values.ownerId,
-      name: values.name,
-      amount: toCents(values.amount),
-      installments: values.installmentNumber,
-      purchased_at: values.purchasedAt,
-      first_payment_date: values.firstPaymentDate,
-      currency: values.currency,
-    });
+    const amountToCents = toCents(values.amount);
+    let reimbursementId: string | null = null;
+    // Handle debt with reimbursement
+    if (values.payerId) {
+      const { error: reimbursementCreationError, data: reimbursementData } =
+        await supabaseClient
+          .from("incomes")
+          .insert({
+            name: `Reimbursement for ${values.name}`,
+            amount: amountToCents,
+            is_recurrent: !values.hasEnd,
+            currency: values.currency,
+            workspace_id: user.workspace_id,
+            first_income_date: values.firstPaymentDate,
+            payer_id: values.payerId,
+            ...(values.hasEnd && {
+              number_of_payments: values.installmentNumber,
+            }),
+          })
+          .select("id");
+      if (reimbursementCreationError) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: reimbursementCreationError.message,
+        });
+        return;
+      }
+
+      reimbursementId = reimbursementData[0].id;
+    }
+    const { error } = await supabaseClient
+      .from("debts")
+      .insert({
+        workspace_id: user.workspace_id,
+        debt_owner_id: values.ownerId,
+        name: values.name,
+        amount: amountToCents,
+        installments: values.installmentNumber,
+        purchased_at: values.purchasedAt,
+        first_payment_date: values.firstPaymentDate,
+        currency: values.currency,
+        reimbursement_income_id: reimbursementId,
+      })
+      .select("id");
 
     if (error) {
       toast({
@@ -215,11 +272,12 @@ export default function Debts() {
         title: "Error",
         description: error.message,
       });
-    } else {
-      toast({ title: "Success", description: "Debt added successfully" });
-      setDialogOpen(false);
-      refetchDebts();
+      return;
     }
+
+    toast({ title: "Success", description: "Debt added successfully" });
+    setDialogOpen(false);
+    refetchDebts();
 
     setIsDebtModalOpen(false);
   };
@@ -229,17 +287,116 @@ export default function Debts() {
       return;
     }
 
+    const {
+      data: existingReimbursementData,
+      error: existingReimbursementError,
+    } = await supabaseClient
+      .from("debts")
+      .select(
+        `
+        reimbursement_income:incomes!inner (
+          id
+        )
+      `,
+      )
+      .eq("id", editDebtId);
+
+    if (existingReimbursementError) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: existingReimbursementError.message,
+      });
+      return;
+    }
+
+    const existingReimbursement = existingReimbursementData[0];
+    let reimbursementId: string | null = null;
+    const amountToCents = toCents(values.amount);
+
+    if (existingReimbursement && values.payerId) {
+      // Update reimbursement
+      const { error } = await supabaseClient
+        .from("incomes")
+        .update({
+          name: `Reimbursement for ${values.name}`,
+          amount: amountToCents,
+          is_recurrent: !values.hasEnd,
+          currency: values.currency,
+          workspace_id: user.workspace_id,
+          first_income_date: values.firstPaymentDate,
+          payer_id: values.payerId,
+          ...(values.hasEnd && {
+            number_of_payments: values.installmentNumber,
+          }),
+        })
+        .eq("id", existingReimbursement.reimbursement_income.id);
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message,
+        });
+        return;
+      }
+      reimbursementId = existingReimbursement.reimbursement_income.id;
+    } else if (!existingReimbursement && values.payerId) {
+      // Create reimbursement
+      const { error: reimbursementCreationError, data: reimbursementData } =
+        await supabaseClient
+          .from("incomes")
+          .insert({
+            name: `Reimbursement for ${values.name}`,
+            amount: amountToCents,
+            is_recurrent: !values.hasEnd,
+            currency: values.currency,
+            workspace_id: user.workspace_id,
+            first_income_date: values.firstPaymentDate,
+            payer_id: values.payerId,
+            ...(values.hasEnd && {
+              number_of_payments: values.installmentNumber,
+            }),
+          })
+          .select("id");
+      if (reimbursementCreationError) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: reimbursementCreationError.message,
+        });
+        return;
+      }
+
+      reimbursementId = reimbursementData[0].id;
+    } else if (existingReimbursement && !values.payerId) {
+      // Delete reimbursement
+      const { error } = await supabaseClient
+        .from("incomes")
+        .delete()
+        .eq("id", existingReimbursement.reimbursement_income.id);
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message,
+        });
+        return;
+      }
+    }
+
     const { error } = await supabaseClient
       .from("debts")
       .update({
         workspace_id: user.workspace_id,
         debt_owner_id: values.ownerId,
         name: values.name,
-        amount: toCents(values.amount),
+        amount: amountToCents,
         installments: values.installmentNumber,
         purchased_at: values.purchasedAt,
         first_payment_date: values.firstPaymentDate,
         currency: values.currency,
+        reimbursement_income_id: reimbursementId,
       })
       .eq("id", editDebtId);
 
@@ -349,6 +506,7 @@ export default function Debts() {
                 setEditDebtId(null);
               }
             }}
+            incomePayers={incomePayers}
           />
         </div>
       </div>
