@@ -26,7 +26,9 @@ export type FormValues = {
   currency: string;
   hasEnd: boolean;
   hasReimbursement: boolean;
-  payerId?: string; // For debts with reimbursement
+  // For debts with reimbursement
+  payerId?: string;
+  reimbursementPercentage?: number; // 0 - 1
 };
 
 type Props = {
@@ -89,6 +91,7 @@ export const DebtFormModal = ({
     defaultValues: {
       hasEnd: true,
       hasReimbursement: false,
+      reimbursementPercentage: 100,
     },
   });
 
@@ -279,6 +282,21 @@ export const DebtFormModal = ({
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="mt-2">
+                  <Label htmlFor="reimbursement-percentage">
+                    How much(%) is reimbursed?
+                  </Label>
+                  <Input
+                    type="number"
+                    id="reimbursement-percentage"
+                    name="reimbursement-percentage"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2"
+                    {...form.register("reimbursementPercentage", {
+                      required: true,
+                      valueAsNumber: true,
+                    })}
+                  />
                 </div>
               </div>
             )}
