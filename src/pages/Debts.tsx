@@ -39,7 +39,6 @@ import {
 } from "@/components/feat/DebtFormModal";
 
 export default function Debts() {
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [ownerDialogOpen, setOwnerDialogOpen] = useState(false);
   const [skip, setSkip] = useState(0);
   const [search, setSearch] = useState<string | null>(null);
@@ -157,7 +156,9 @@ export default function Debts() {
 
       // Convert amount from cents
       const amount = centsToRealAmount(debt.amount);
-      const totalAmount = centsToRealAmount(debt.installments * debt.amount);
+      const totalAmount = centsToRealAmount(
+        (debt.installments ?? 1) * debt.amount,
+      );
 
       return {
         ...debt,
@@ -207,19 +208,30 @@ export default function Debts() {
 
   const [isDebtModalOpen, setIsDebtModalOpen] = useState(false);
 
-  async function addOrUpdateDebt(values: DebtFormValues) {
-    if (editDebtId) {
-      updateDebt(values);
-    } else {
-      addDebt(values);
+  async function addOrUpdateDebt({
+    form,
+    addMore,
+    onSubmitFinish,
+  }: {
+    form: DebtFormValues;
+    addMore: boolean;
+    onSubmitFinish: () => void;
+  }) {
+    try {
+      if (editDebtId) {
+        await updateDebt(form);
+      } else {
+        await addDebt(form, addMore);
+      }
+    } finally {
+      onSubmitFinish();
     }
   }
 
-  const addDebt = async (values: DebtFormValues) => {
+  const addDebt = async (values: DebtFormValues, addMore: boolean) => {
     if (!user) {
       return;
     }
-    console.log(values);
 
     const amountToCents = toCents(values.amount);
     let reimbursementId: string | null = null;
@@ -261,11 +273,14 @@ export default function Debts() {
         debt_owner_id: values.ownerId,
         name: values.name,
         amount: amountToCents,
-        installments: values.installmentNumber,
+        has_end: values.hasEnd,
         purchased_at: values.purchasedAt,
         first_payment_date: values.firstPaymentDate,
         currency: values.currency,
         reimbursement_income_id: reimbursementId,
+        ...(values.hasEnd && {
+          installments: values.installmentNumber,
+        }),
       })
       .select("id");
 
@@ -279,10 +294,11 @@ export default function Debts() {
     }
 
     toast({ title: "Success", description: "Debt added successfully" });
-    setDialogOpen(false);
     refetchDebts();
 
-    setIsDebtModalOpen(false);
+    if (!addMore) {
+      setIsDebtModalOpen(false);
+    }
   };
 
   async function updateDebt(values: DebtFormValues) {
@@ -397,11 +413,14 @@ export default function Debts() {
         debt_owner_id: values.ownerId,
         name: values.name,
         amount: amountToCents,
-        installments: values.installmentNumber,
         purchased_at: values.purchasedAt,
         first_payment_date: values.firstPaymentDate,
         currency: values.currency,
         reimbursement_income_id: reimbursementId,
+        has_end: values.hasEnd,
+        ...(values.hasEnd && {
+          installments: values.installmentNumber,
+        }),
       })
       .eq("id", editDebtId);
 
@@ -413,7 +432,6 @@ export default function Debts() {
       });
     } else {
       toast({ title: "Success", description: "Debt added successfully" });
-      setDialogOpen(false);
       refetchDebts();
     }
 
@@ -538,7 +556,7 @@ export default function Debts() {
               <TableCell>
                 {debt.amount} {debt.currency}
               </TableCell>
-              <TableCell>{debt.installments}</TableCell>
+              <TableCell>{debt.installments ?? "N/A"}</TableCell>
               <TableCell>
                 {debt.totalAmount} {debt.currency}
               </TableCell>
