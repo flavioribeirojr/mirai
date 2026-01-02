@@ -35,7 +35,11 @@ type Props = {
   isOpen: boolean;
   onOpenChanged: (open: boolean) => void;
   debtId?: string; // When doing update use this prop
-  onSubmit: (form: FormValues) => void;
+  onSubmit: (input: {
+    form: FormValues;
+    addMore: boolean;
+    onSubmitFinish: () => void;
+  }) => void;
   debtOwners: {
     id: string;
     name: string;
@@ -123,10 +127,18 @@ export const DebtFormModal = ({
   const hasEnd = form.watch("hasEnd");
   const hasReimbursement = form.watch("hasReimbursement");
 
+  const [addMoreAfterSubmit, setAddMoreAfterSubmit] = useState(false);
+
   function triggerSubmit(values: FormValues) {
     onSubmit({
-      ...values,
-      payerId: values.hasReimbursement ? values.payerId : undefined,
+      form: {
+        ...values,
+        payerId: values.hasReimbursement ? values.payerId : undefined,
+      },
+      addMore: addMoreAfterSubmit,
+      onSubmitFinish: () => {
+        form.reset();
+      },
     });
   }
 
@@ -304,6 +316,16 @@ export const DebtFormModal = ({
           <Button type="submit" className="w-full">
             {debtId ? "Update Debt" : "Add Debt"}
           </Button>
+
+          {!debtId && (
+            <div className="flex items-center mt-3">
+              <Switch
+                checked={addMoreAfterSubmit}
+                onCheckedChange={(checked) => setAddMoreAfterSubmit(checked)}
+              />
+              <Label className="cursor-pointer ml-2">Add more</Label>
+            </div>
+          )}
         </form>
       </DialogContent>
     </Dialog>

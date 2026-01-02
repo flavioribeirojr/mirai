@@ -224,6 +224,7 @@ export default function Dashboard() {
             installments,
             first_payment_date,
             end_date,
+            has_end,
             owner:debt_owners!inner (
               id,
               name,
@@ -292,6 +293,7 @@ export default function Dashboard() {
           status: matDebt.status,
           installments: matDebt.original_debt.installments,
           installment_number: installmentNumber,
+          hasEnd: matDebt.original_debt.has_end,
           owner: {
             id: matDebt.original_debt.owner.id,
             name: matDebt.original_debt.owner.name,
@@ -359,7 +361,7 @@ export default function Dashboard() {
           `and(first_payment_date.gte.${startDate},first_payment_date.lte.${endDate})`,
           `and(first_payment_date.lte.${startDate},end_date.gte.${endDate})`,
           `and(first_payment_date.lte.${startDate},end_date.gte.${startDate},end_date.lte.${endDate})`,
-          `and(has_end.eq.false,first_payment_date.gte.${startDate})`,
+          `and(has_end.eq.false,first_payment_date.lte.${startDate})`,
         ].join(","),
       );
 
@@ -422,6 +424,7 @@ export default function Dashboard() {
           status: "PENDING",
           installment_number: installmentNumber,
           installments: debt.installments,
+          hasEnd: debt.has_end,
           owner: {
             id: debt.debt_owner_id,
             name: debt.debt_owner.name,
@@ -853,8 +856,13 @@ export default function Dashboard() {
                                 : ""
                             }
                           >
-                            {debt.name} (Installment {debt.installment_number}/
-                            {debt.installments})
+                            {debt.name}{" "}
+                            {debt.hasEnd && (
+                              <>
+                                (Installment {debt.installment_number}/
+                                {debt.installments})
+                              </>
+                            )}
                           </span>
                         </div>
                         <Badge
