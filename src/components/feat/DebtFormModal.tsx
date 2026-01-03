@@ -29,6 +29,7 @@ export type FormValues = {
   // For debts with reimbursement
   payerId?: string;
   reimbursementPercentage?: number; // 0 - 1
+  amountReimbursed?: number;
 };
 
 type Props = {
@@ -134,12 +135,20 @@ export const DebtFormModal = ({
       form: {
         ...values,
         payerId: values.hasReimbursement ? values.payerId : undefined,
+        ...(hasReimbursement && {
+          amountReimbursed: getAmountCalculatedWithReimbursement(values),
+        }),
       },
       addMore: addMoreAfterSubmit,
       onSubmitFinish: () => {
         form.reset();
       },
     });
+  }
+
+  function getAmountCalculatedWithReimbursement(values: FormValues) {
+    const percentage = values.reimbursementPercentage / 100;
+    return values.amount * percentage;
   }
 
   return (

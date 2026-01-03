@@ -237,14 +237,15 @@ export default function Debts() {
     let reimbursementId: string | null = null;
     // Handle debt with reimbursement
     if (values.payerId) {
-      const percentage = values.reimbursementPercentage / 100; // Assume value between 0.1 - 100
-      const amountCalculatedWithPercentage = amountToCents * percentage;
+      const amountReimbursed = toCents(
+        values.amountReimbursed ?? amountToCents,
+      );
       const { error: reimbursementCreationError, data: reimbursementData } =
         await supabaseClient
           .from("incomes")
           .insert({
             name: `Reimbursement for ${values.name}`,
-            amount: amountCalculatedWithPercentage,
+            amount: amountReimbursed,
             is_recurrent: !values.hasEnd,
             currency: values.currency,
             workspace_id: user.workspace_id,
@@ -332,8 +333,7 @@ export default function Debts() {
     const existingReimbursement = existingReimbursementData[0];
     let reimbursementId: string | null = null;
     const amountToCents = toCents(values.amount);
-    const percentage = (values.reimbursementPercentage ?? 100) / 100; // Assume value between 0.1 - 100
-    const amountCalculatedWithPercentage = amountToCents * percentage;
+    const amountReimbursed = toCents(values.amountReimbursed ?? values.amount);
 
     if (existingReimbursement && values.payerId) {
       // Update reimbursement
@@ -341,7 +341,7 @@ export default function Debts() {
         .from("incomes")
         .update({
           name: `Reimbursement for ${values.name}`,
-          amount: amountCalculatedWithPercentage,
+          amount: amountReimbursed,
           is_recurrent: !values.hasEnd,
           currency: values.currency,
           workspace_id: user.workspace_id,
@@ -369,7 +369,7 @@ export default function Debts() {
           .from("incomes")
           .insert({
             name: `Reimbursement for ${values.name}`,
-            amount: amountCalculatedWithPercentage,
+            amount: amountReimbursed,
             is_recurrent: !values.hasEnd,
             currency: values.currency,
             workspace_id: user.workspace_id,
