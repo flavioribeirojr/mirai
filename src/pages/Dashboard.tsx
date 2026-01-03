@@ -45,6 +45,13 @@ import {
 } from "@/lib/utils";
 import { useSupabaseFunction } from "@/hooks/useSupabaseFunction";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CycleStatusToggler } from "@/components/feat/CycleStatusToggler";
 
 type DashboardIncome = {
   id: string;
@@ -483,19 +490,18 @@ export default function Dashboard() {
     };
   }
 
-  const toggleDebtStatus = async (
+  const toggleDebtOwnerStatus = async (
     debtOwnerId: string,
-    currentStatus: string,
+    newStatus: string,
   ) => {
     if (cycleData.type === "forecast") {
       return; // Can't change status for non materialized debt
     }
-    const newStatus = currentStatus === "PENDING" ? "PAID" : "PENDING";
     const { data, error } = await supabase
       .from("materialized_debts")
-      .select("id")
+      .select("id, debt:debts!inner(*)")
       .eq("cycle_id", cycleData.cycleId)
-      .eq("debts.debt_owner_id", debtOwnerId);
+      .eq("debt.debt_owner_id", debtOwnerId);
 
     if (error) {
       throw error;
@@ -508,21 +514,22 @@ export default function Dashboard() {
         "id",
         data.map((item) => item.id),
       );
+
+    refetchCycleData();
   };
 
-  const toggleIncomeStatus = async (
+  const toggleIncomePayerStatus = async (
     incomePayerId: string,
-    currentStatus: string,
+    newStatus: string,
   ) => {
     if (cycleData.type === "forecast") {
       return; // Can't change status for non materialized debt
     }
-    const newStatus = currentStatus === "PENDING" ? "PAID" : "PENDING";
     const { data, error } = await supabase
       .from("materialized_incomes")
-      .select("id")
+      .select("id,income:incomes!inner(*)")
       .eq("cycle_id", cycleData.cycleId)
-      .eq("incomes.income_owner_id", incomePayerId);
+      .eq("income.payer_id", incomePayerId);
 
     if (error) {
       throw error;
@@ -535,6 +542,8 @@ export default function Dashboard() {
         "id",
         data.map((item) => item.id),
       );
+
+    refetchCycleData();
   };
 
   const addExpense = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -664,6 +673,32 @@ export default function Dashboard() {
 
     return grouped;
   }, [cycleData]);
+
+  async function toggleDebtStatus(matDebtId: string, newStatus: string) {
+    if (cycleData.type === "forecast") {
+      return; // Can't change status for non materialized debt
+    }
+
+    await supabase
+      .from("materialized_debts")
+      .update({ status: newStatus })
+      .eq("id", matDebtId);
+
+    refetchCycleData();
+  }
+
+  async function toggleIncomeStatus(matIncomeId: string, newStatus: string) {
+    if (cycleData.type === "forecast") {
+      return; // Can't change status for non materialized debt
+    }
+
+    await supabase
+      .from("materialized_incomes")
+      .update({ status: newStatus })
+      .eq("id", matIncomeId);
+
+    refetchCycleData();
+  }
 
   return (
     <div className="space-y-6">
@@ -821,34 +856,36 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-4">
               {Object.entries(debtsByOwner).map(([owner, data]) => (
-                <div key={owner} className="border rounded-lg p-4">
+                <div key={owner} className="border rounded-lg p-4 bg-gray-100">
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-semibold">{data.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <CycleStatusToggler
+                        currentStatus={data.status}
+                        onStatusChange={(status) =>
+                          toggleDebtOwnerStatus(owner, status)
+                        }
+                      />
+
+                      <h3 className="font-semibold">{data.name}</h3>
+                    </div>
                     <span className="text-danger font-semibold">
                       R$ {centsToRealAmount(data.total)}
                     </span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 bg-white rounded-md px-3 py-5">
                     {data.debts.map((debt) => (
                       <div
                         key={debt.id}
                         className="flex items-center justify-between text-sm"
                       >
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() =>
-                              toggleDebtStatus(debt.id, debt.status)
+                          <CycleStatusToggler
+                            currentStatus={debt.status}
+                            onStatusChange={(status) =>
+                              toggleDebtStatus(debt.id, status)
                             }
-                          >
-                            {debt.status === "PAID" ? (
-                              <Check className="w-4 h-4 text-success" />
-                            ) : (
-                              <X className="w-4 h-4 text-muted-foreground" />
-                            )}
-                          </Button>
+                          />
+
                           <span
                             className={
                               debt.status === "PAID"
@@ -895,34 +932,35 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-4">
               {Object.entries(incomesByOwner).map(([payer, data]) => (
-                <div key={payer} className="border rounded-lg p-4">
+                <div key={payer} className="border rounded-lg p-4 bg-gray-100">
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-semibold">{data.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <CycleStatusToggler
+                        currentStatus={data.status}
+                        onStatusChange={(status) =>
+                          toggleIncomePayerStatus(payer, status)
+                        }
+                      />
+                      <h3 className="font-semibold">{data.name}</h3>
+                    </div>
                     <span className="text-success font-semibold">
                       R$ {centsToRealAmount(data.total)}
                     </span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 bg-white rounded-md px-3 py-5">
                     {data.incomes.map((income) => (
                       <div
                         key={income.id}
                         className="flex items-center justify-between text-sm"
                       >
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() =>
-                              toggleIncomeStatus(income.id, income.status)
+                          <CycleStatusToggler
+                            currentStatus={income.status}
+                            onStatusChange={(status) =>
+                              toggleIncomeStatus(income.id, status)
                             }
-                          >
-                            {income.status === "PAID" ? (
-                              <Check className="w-4 h-4 text-success" />
-                            ) : (
-                              <X className="w-4 h-4 text-muted-foreground" />
-                            )}
-                          </Button>
+                          />
+
                           <span
                             className={
                               income.status === "PAID"
