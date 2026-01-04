@@ -21,14 +21,10 @@ import {
   TrendingDown,
   TrendingUp,
   Plus,
-  Check,
-  X,
-  DeleteIcon,
   Trash2Icon,
 } from "lucide-react";
 import {
   differenceInCalendarMonths,
-  differenceInMonths,
   endOfMonth,
   format,
   formatDate,
@@ -45,13 +41,8 @@ import {
 } from "@/lib/utils";
 import { useSupabaseFunction } from "@/hooks/useSupabaseFunction";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { CycleStatusToggler } from "@/components/feat/CycleStatusToggler";
+import { Database } from "@/integrations/supabase/database.types";
 
 type DashboardIncome = {
   id: string;
@@ -59,6 +50,7 @@ type DashboardIncome = {
   amount: number; // In cents
   name: string;
   status: string;
+  type: Database["public"]["Enums"]["IncomeType"];
   payer: {
     id: string;
     name: string;
@@ -72,6 +64,7 @@ type DashboardDebt = {
   installments: number;
   installment_number?: number;
   status: string;
+  type: Database["public"]["Enums"]["DebtType"];
   owner: {
     id: string;
     name: string;
@@ -139,17 +132,23 @@ export default function Dashboard() {
   const startCycleMutation = useMutation({
     mutationFn: async ({
       date,
-      incomesOverrides,
+      incomesOverride,
+      debtsOverride,
     }: {
       date: string;
-      incomesOverrides?: {
+      incomesOverride?: {
         incomeId: string;
+        amount: number;
+      }[];
+      debtsOverride?: {
+        debtId: string;
         amount: number;
       }[];
     }) => {
       await kyckstartCycleFunction.invoke({
         date,
-        incomesOverrides,
+        incomesOverride,
+        debtsOverride,
       });
     },
   });
@@ -232,6 +231,7 @@ export default function Dashboard() {
             first_payment_date,
             end_date,
             has_end,
+            type,
             owner:debt_owners!inner (
               id,
               name,
@@ -248,6 +248,7 @@ export default function Dashboard() {
             name,
             amount,
             currency,
+            type,
             payer:income_payers!inner (
               id,
               name,
@@ -301,6 +302,7 @@ export default function Dashboard() {
           installments: matDebt.original_debt.installments,
           installment_number: installmentNumber,
           hasEnd: matDebt.original_debt.has_end,
+          type: matDebt.original_debt.type,
           owner: {
             id: matDebt.original_debt.owner.id,
             name: matDebt.original_debt.owner.name,
@@ -315,6 +317,7 @@ export default function Dashboard() {
         amount: matIncome.amount,
         currency: "BRL",
         status: matIncome.status,
+        type: matIncome.original_income.type,
         payer: {
           id: matIncome.original_income.payer.id,
           name: matIncome.original_income.payer.name,
@@ -432,6 +435,7 @@ export default function Dashboard() {
           installment_number: installmentNumber,
           installments: debt.installments,
           hasEnd: debt.has_end,
+          type: debt.type,
           owner: {
             id: debt.debt_owner_id,
             name: debt.debt_owner.name,
@@ -461,6 +465,7 @@ export default function Dashboard() {
         name: income.name,
         amount: income.amount,
         currency: income.currency,
+        type: income.type,
         status: "PENDING",
         payer: {
           id: income.payer.id,
@@ -573,23 +578,38 @@ export default function Dashboard() {
   };
 
   async function handleStartCycleSubmit(form: FormData) {
-    const override: {
+    const incomesOverride: {
       incomeId: string;
       amount: number;
     }[] = [];
+    const debtsOverride: {
+      debtId: string;
+      amount: number;
+    }[] = [];
     for (const [name, value] of form.entries()) {
-      const [, incomeId] = name.split("-");
+      const [prefix, ...idParts] = name.split("-");
+      const id = idParts.join("-");
       const amountAsNumber = Number(value);
-      override.push({
-        incomeId,
-        amount: toCents(amountAsNumber),
-      });
+      const amount = toCents(amountAsNumber);
+
+      if (prefix === "income") {
+        incomesOverride.push({
+          incomeId: id,
+          amount,
+        });
+      } else {
+        debtsOverride.push({
+          debtId: id,
+          amount,
+        });
+      }
     }
 
     try {
       await startCycleMutation.mutateAsync({
         date: formatDate(cycleData.date, "yyyy-MM-dd"),
-        incomesOverrides: override,
+        incomesOverride,
+        debtsOverride,
       });
 
       toast({
@@ -699,6 +719,22 @@ export default function Dashboard() {
 
     refetchCycleData();
   }
+
+  const paymentIncomes = useMemo(() => {
+    if (!cycleData) {
+      return [];
+    }
+
+    return cycleData.incomes.filter((income) => income.type === "PAYMENT");
+  }, [cycleData]);
+
+  const variableDebts = useMemo(() => {
+    if (!cycleData) {
+      return [];
+    }
+
+    return cycleData.debts.filter((debt) => debt.type === "VARIABLE");
+  }, [cycleData]);
 
   return (
     <div className="space-y-6">
@@ -816,22 +852,48 @@ export default function Dashboard() {
                     handleStartCycleSubmit(formData);
                   }}
                 >
-                  {(cycleData?.incomes ?? []).map((income) => (
-                    <div key={income.id} className="space-y-2">
-                      <Label htmlFor={`income-${income.id}`}>
-                        {income.name}
-                      </Label>
-                      <Input
-                        id={`income-${income.id}`}
-                        name={`income-${income.id}`}
-                        type="number"
-                        step="0.01"
-                        defaultValue={centsToRealAmountNotFormatted(
-                          income.amount,
-                        )}
-                      />
-                    </div>
-                  ))}
+                  <h4 className="font-semibold">
+                    Incomes values{" "}
+                    <small className="font-normal">(payment only)</small>
+                  </h4>
+                  <div className="p-3 bg-gray-200 rounded-sm mb-3">
+                    {paymentIncomes.map((income) => (
+                      <div key={income.id} className="space-y-2">
+                        <Label htmlFor={`income-${income.id}`}>
+                          {income.name}
+                        </Label>
+                        <Input
+                          id={`income-${income.id}`}
+                          name={`income-${income.id}`}
+                          type="number"
+                          step="0.01"
+                          defaultValue={centsToRealAmountNotFormatted(
+                            income.amount,
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <h4 className="font-semibold">
+                    Debts values{" "}
+                    <small className="font-normal">(variable only)</small>
+                  </h4>
+                  <div className="p-3 bg-gray-200 rounded-sm">
+                    {variableDebts.map((debt) => (
+                      <div key={debt.id} className="space-y-2">
+                        <Label htmlFor={`debt-${debt.id}`}>{debt.name}</Label>
+                        <Input
+                          id={`debt-${debt.id}`}
+                          name={`debt-${debt.id}`}
+                          type="number"
+                          step="0.01"
+                          defaultValue={centsToRealAmountNotFormatted(
+                            debt.amount,
+                          )}
+                        />
+                      </div>
+                    ))}
+                  </div>
                   <Button type="submit" className="w-full mt-5">
                     {startCycleMutation.isPending && <Spinner />}
                     Confirm and start cycle
