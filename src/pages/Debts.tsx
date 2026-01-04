@@ -251,6 +251,7 @@ export default function Debts() {
             workspace_id: user.workspace_id,
             first_income_date: values.firstPaymentDate,
             payer_id: values.payerId,
+            type: "REIMBURSEMENT",
             ...(values.hasEnd && {
               number_of_payments: values.installmentNumber,
             }),
@@ -279,6 +280,7 @@ export default function Debts() {
         first_payment_date: values.firstPaymentDate,
         currency: values.currency,
         reimbursement_income_id: reimbursementId,
+        type: values.type,
         ...(values.hasEnd && {
           installments: values.installmentNumber,
         }),
@@ -347,6 +349,7 @@ export default function Debts() {
           workspace_id: user.workspace_id,
           first_income_date: values.firstPaymentDate,
           payer_id: values.payerId,
+          type: "REIMBURSEMENT",
           ...(values.hasEnd && {
             number_of_payments: values.installmentNumber,
           }),
@@ -375,6 +378,7 @@ export default function Debts() {
             workspace_id: user.workspace_id,
             first_income_date: values.firstPaymentDate,
             payer_id: values.payerId,
+            type: "REIMBURSEMENT",
             ...(values.hasEnd && {
               number_of_payments: values.installmentNumber,
             }),
@@ -418,6 +422,7 @@ export default function Debts() {
         currency: values.currency,
         reimbursement_income_id: reimbursementId,
         has_end: values.hasEnd,
+        type: values.type,
         ...(values.hasEnd && {
           installments: values.installmentNumber,
         }),

@@ -101,6 +101,7 @@ export type Database = {
           name: string
           purchased_at: string | null
           reimbursement_income_id: string | null
+          type: Database["public"]["Enums"]["DebtType"] | null
           workspace_id: string
         }
         Insert: {
@@ -116,6 +117,7 @@ export type Database = {
           name: string
           purchased_at?: string | null
           reimbursement_income_id?: string | null
+          type?: Database["public"]["Enums"]["DebtType"] | null
           workspace_id?: string
         }
         Update: {
@@ -131,6 +133,7 @@ export type Database = {
           name?: string
           purchased_at?: string | null
           reimbursement_income_id?: string | null
+          type?: Database["public"]["Enums"]["DebtType"] | null
           workspace_id?: string
         }
         Relationships: [
@@ -201,6 +204,7 @@ export type Database = {
           name: string
           number_of_payments: number | null
           payer_id: string | null
+          type: Database["public"]["Enums"]["IncomeType"]
           workspace_id: string
         }
         Insert: {
@@ -214,6 +218,7 @@ export type Database = {
           name: string
           number_of_payments?: number | null
           payer_id?: string | null
+          type?: Database["public"]["Enums"]["IncomeType"]
           workspace_id?: string
         }
         Update: {
@@ -227,6 +232,7 @@ export type Database = {
           name?: string
           number_of_payments?: number | null
           payer_id?: string | null
+          type?: Database["public"]["Enums"]["IncomeType"]
           workspace_id?: string
         }
         Relationships: [
@@ -455,7 +461,8 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      DebtType: "FIXED" | "VARIABLE"
+      IncomeType: "PAYMENT" | "REIMBURSEMENT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -582,6 +589,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      DebtType: ["FIXED", "VARIABLE"],
+      IncomeType: ["PAYMENT", "REIMBURSEMENT"],
+    },
   },
 } as const

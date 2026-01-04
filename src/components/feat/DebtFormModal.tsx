@@ -15,6 +15,9 @@ import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { useForm } from "react-hook-form";
 import { Switch } from "../ui/switch";
+import { Constants, Database } from "@/integrations/supabase/database.types";
+
+export type DebtType = Database["public"]["Enums"]["DebtType"];
 
 export type FormValues = {
   ownerId: string;
@@ -25,6 +28,7 @@ export type FormValues = {
   firstPaymentDate: string;
   currency: string;
   hasEnd: boolean;
+  type: DebtType;
   hasReimbursement: boolean;
   // For debts with reimbursement
   payerId?: string;
@@ -111,6 +115,7 @@ export const DebtFormModal = ({
         purchasedAt: existingDebt.purchased_at,
         currency: existingDebt.currency,
         hasEnd: existingDebt.has_end,
+        type: existingDebt.type,
         ...(existingDebt.reimbursement_income && {
           payerId: existingDebt.reimbursement_income.payer_id,
           hasReimbursement: true,
@@ -187,6 +192,22 @@ export const DebtFormModal = ({
               name="name"
               {...form.register("name", { required: true })}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="debt-type">Type</Label>
+            <select
+              id="debt-type"
+              name="debt-type"
+              className="w-full rounded-md border border-input bg-background px-3 py-2"
+              {...form.register("type", {
+                required: true,
+              })}
+            >
+              <option value={Constants.public.Enums.DebtType[0]}>Fixed</option>
+              <option value={Constants.public.Enums.DebtType[1]}>
+                Variable
+              </option>
+            </select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="debt-currency">Currency</Label>
