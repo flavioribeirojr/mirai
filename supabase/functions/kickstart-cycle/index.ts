@@ -13,7 +13,11 @@ const requestSchema = z.object({
   incomesOverride: z.array(z.object({
     incomeId: z.string(),
     amount: z.int() // In cents
-  })).optional()
+  })).optional(),
+  debtsOverride: z.array(z.object({
+    debtId: z.string(),
+    amount: z.int() // In cents
+  })).optional(),
 });
 
 Deno.serve(async (req) => {
@@ -124,10 +128,18 @@ Deno.serve(async (req) => {
   }
 
   // Insert debts
+  const debtsOverride: {[key: string]: number} = (body.debtsOverride ?? []).reduce((acc, override) => {
+    return {
+      ...acc,
+      [override.debtId]: override.amount,
+    };
+  }, {})
   const mappedDebts = await Promise.all(debts.map(async debt => {
     let amount = debt.amount;
 
-    if (debt.currency === 'USD') {
+    if (debt.id in debtsOverride) {
+      amount = debtsOverride[debt.id];
+    } else if (debt.currency === 'USD') {
       // Calculate exchange
       amount = await calculateUSDToBRL(debt.amount);
     }
