@@ -832,7 +832,7 @@ export default function Dashboard() {
               <DialogTrigger asChild>
                 <Button>+ Start cycle</Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="h-3/5 overflow-auto">
                 <DialogHeader>
                   <DialogTitle>Start cycle</DialogTitle>
                   <DialogDescription>
