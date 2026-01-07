@@ -99,16 +99,10 @@ export default function Dashboard() {
   const [startCycleOpen, setStartCycleOpen] = useState(false);
   const supabase = useSupabaseClient();
   const user = useUserContext();
-  const { sessionToken } = useSession();
   const calculateUSDToBRLFunction = useSupabaseFunction({
     functionName: "calculate-usd-to-brl",
   });
-  const {
-    data: cycleData,
-    error: cycleDataError,
-    isLoading: loadingCycleData,
-    refetch: refetchCycleData,
-  } = useQuery({
+  const { data: cycleData, refetch: refetchCycleData } = useQuery({
     queryKey: ["get-dashboard-finance-data", dateRange, user],
     queryFn: async function loadCurrentDateFinance() {
       const presentDateStartOfMonth = startOfMonth(new Date());

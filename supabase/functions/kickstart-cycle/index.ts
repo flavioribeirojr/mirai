@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
       `and(first_payment_date.gte.${startDate},first_payment_date.lte.${endDate})`,
       `and(first_payment_date.lte.${startDate},end_date.gte.${endDate})`,
       `and(first_payment_date.lte.${startDate},end_date.gte.${startDate},end_date.lte.${endDate})`,
-      `and(has_end.eq.false,first_payment_date.gte.${startDate})`
+      `and(has_end.eq.false,first_payment_date.lte.${startDate})`
     ].join(','));
 
   if (debtsError) {
