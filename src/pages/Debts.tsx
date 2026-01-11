@@ -24,7 +24,7 @@ import { PencilLine, Plus, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useUserContext } from "@/hooks/useUser";
 import { centsToRealAmount, toCents } from "@/lib/utils";
-import { addMonths, format } from "date-fns";
+import { addMonths, endOfMonth, format, startOfMonth } from "date-fns";
 import { SearchBar } from "@/components/feat/SearchBar";
 import {
   Pagination,
@@ -131,6 +131,25 @@ export default function Debts() {
       if (error) throw error;
 
       return data;
+    },
+  });
+  const { data: existingCycle } = useQuery({
+    queryKey: ["get-current-cycle"],
+    queryFn: async () => {
+      const currentDate = new Date();
+      const startDate = startOfMonth(currentDate);
+      const endDate = endOfMonth(currentDate);
+      const { data, error } = await supabaseClient
+        .from("materialized_cycles")
+        .select()
+        .gte("date", format(startDate, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"));
+
+      if (error) {
+        throw error;
+      }
+
+      return data[0];
     },
   });
   const incomePayers = useMemo(() => {
@@ -268,7 +287,7 @@ export default function Debts() {
 
       reimbursementId = reimbursementData[0].id;
     }
-    const { error } = await supabaseClient
+    const { error, data: createdDebt } = await supabaseClient
       .from("debts")
       .insert({
         workspace_id: user.workspace_id,
@@ -294,6 +313,18 @@ export default function Debts() {
         description: error.message,
       });
       return;
+    }
+
+    if (values.syncWithExistingCycle && existingCycle) {
+      const amount =
+        values.type === "VARIABLE" && values.syncExistingCycleAmout
+          ? values.syncExistingCycleAmout
+          : values.amount;
+      await supabaseClient.from("materialized_debts").insert({
+        cycle_id: existingCycle.id,
+        debt_id: createdDebt[0].id,
+        amount: toCents(amount),
+      });
     }
 
     toast({ title: "Success", description: "Debt added successfully" });
@@ -435,10 +466,26 @@ export default function Debts() {
         title: "Error",
         description: error.message,
       });
-    } else {
-      toast({ title: "Success", description: "Debt added successfully" });
-      refetchDebts();
+      return;
     }
+
+    if (values.syncWithExistingCycle && existingCycle) {
+      const amount =
+        values.type === "VARIABLE" && values.syncExistingCycleAmout
+          ? values.syncExistingCycleAmout
+          : values.amount;
+      await supabaseClient.from("materialized_debts").upsert(
+        {
+          cycle_id: existingCycle.id,
+          debt_id: editDebtId,
+          amount: toCents(amount),
+        },
+        { onConflict: "debt_id, cycle_id", ignoreDuplicates: false },
+      );
+    }
+
+    toast({ title: "Success", description: "Debt added successfully" });
+    refetchDebts();
 
     setEditDebtId(null);
     setIsDebtModalOpen(false);
@@ -535,6 +582,7 @@ export default function Debts() {
               }
             }}
             incomePayers={incomePayers}
+            showSyncCycleSwitch={!!existingCycle}
           />
         </div>
       </div>

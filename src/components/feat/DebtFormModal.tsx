@@ -1,7 +1,7 @@
 import { useSupabaseClient } from "@/integrations/supabase/client";
 import { centsToRealAmountNotFormatted } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,14 @@ import { Input } from "../ui/input";
 import { useForm } from "react-hook-form";
 import { Switch } from "../ui/switch";
 import { Constants, Database } from "@/integrations/supabase/database.types";
+import {
+  addMonths,
+  isAfter,
+  isBefore,
+  isSameDay,
+  isSameMonth,
+  startOfMonth,
+} from "date-fns";
 
 export type DebtType = Database["public"]["Enums"]["DebtType"];
 
@@ -30,6 +38,8 @@ export type FormValues = {
   hasEnd: boolean;
   type: DebtType;
   hasReimbursement: boolean;
+  syncWithExistingCycle?: boolean;
+  syncExistingCycleAmout?: number;
   // For debts with reimbursement
   payerId?: string;
   reimbursementPercentage?: number; // 0 - 1
@@ -55,6 +65,7 @@ type Props = {
     name: string;
     type: string;
   }[];
+  showSyncCycleSwitch?: boolean;
 };
 
 export const DebtFormModal = ({
@@ -64,6 +75,7 @@ export const DebtFormModal = ({
   isOpen,
   onOpenChanged,
   incomePayers,
+  showSyncCycleSwitch,
 }: Props) => {
   const supabase = useSupabaseClient();
   const { data: existingDebt } = useQuery({
@@ -155,6 +167,42 @@ export const DebtFormModal = ({
     const percentage = values.reimbursementPercentage / 100;
     return values.amount * percentage;
   }
+
+  const syncWithCurrentCycle = form.watch("syncWithExistingCycle");
+  const firstPaymentDate = form.watch("firstPaymentDate");
+  const installments = form.watch("installmentNumber");
+  const hasEndDate = form.watch("hasEnd");
+
+  const isDebtEligibleForSyncWithCurrentCycle = useMemo(() => {
+    // Debt is eligible for sync if any of these match:
+    // 1) First payment date is current month
+    // 2) First payment date is <= current month but end date is >= current month
+    // 3) First payment date is <= current month but there is no end date
+    const todayStartOfMonth = startOfMonth(new Date());
+    const firstPaymentDateStartOfMonth = startOfMonth(firstPaymentDate);
+    const endDate = addMonths(firstPaymentDateStartOfMonth, installments);
+
+    const firstPaymentDateIsCurrentDate = isSameDay(
+      todayStartOfMonth,
+      firstPaymentDateStartOfMonth,
+    );
+
+    const firstPaymentDateIsBeforeCurrentMonth = isBefore(
+      firstPaymentDateStartOfMonth,
+      todayStartOfMonth,
+    );
+    const endDateIsSameOrBeforeCurrentMonth =
+      isSameDay(endDate, todayStartOfMonth) ||
+      isAfter(endDate, todayStartOfMonth);
+
+    return (
+      firstPaymentDateIsCurrentDate ||
+      (firstPaymentDateIsBeforeCurrentMonth &&
+        endDateIsSameOrBeforeCurrentMonth) ||
+      (firstPaymentDateIsBeforeCurrentMonth && !hasEndDate)
+    );
+  }, [firstPaymentDate, installments, hasEndDate]);
+  const debtType = form.watch("type");
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChanged}>
@@ -294,6 +342,37 @@ export const DebtFormModal = ({
               />
             </div>
           </div>
+          {showSyncCycleSwitch && isDebtEligibleForSyncWithCurrentCycle && (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={syncWithCurrentCycle}
+                    onCheckedChange={(checked) =>
+                      form.setValue("syncWithExistingCycle", checked)
+                    }
+                  />
+                  <Label className="cursor-pointer">Sync current cycle</Label>
+                </div>
+              </div>
+              {debtType === "VARIABLE" && syncWithCurrentCycle && (
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Value for current cycle</Label>
+                  <Input
+                    id="syncExistingCycleAmout"
+                    name="syncExistingCycleAmout"
+                    type="number"
+                    step="0.01"
+                    {...form.register("syncExistingCycleAmout", {
+                      required: true,
+                      min: 0,
+                      valueAsNumber: true,
+                    })}
+                  />
+                </div>
+              )}
+            </>
+          )}
           <div className="space-y-2">
             <div className="flex items-center">
               <Switch
@@ -343,6 +422,7 @@ export const DebtFormModal = ({
               </div>
             )}
           </div>
+
           <Button type="submit" className="w-full">
             {debtId ? "Update Debt" : "Add Debt"}
           </Button>
