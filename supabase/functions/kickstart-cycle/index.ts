@@ -98,7 +98,12 @@ Deno.serve(async (req) => {
 
   const { data: incomes, error: incomesError } = await supabase
     .from("incomes")
-    .select()
+    .select(`
+      *,
+      reimbursement:debts!left(
+        id
+      )
+    `)
     .eq('workspace_id', user.workspace_id!)
     .or([
       `and(first_income_date.gte.${startDate},first_income_date.lte.${endDate})`,
@@ -172,9 +177,21 @@ Deno.serve(async (req) => {
   const mappedIncomes = await Promise.all(incomes.map(async income => {
     let amount = income.amount;
 
+    // If income is reimbursement and user provided override for debt use it
     // If user specified another value for income use it instead
     // This is common when starting a cycle and doing exchange(for example USD -> BRL)
-    if (income.id in incomesOverride) {
+    if (
+      income.reimbursement &&
+      income.reimbursement.length &&
+      income.reimbursement[0].id in debtsOverride
+    ) {
+      const reimbursementId = income.reimbursement[0].id;
+      // First figure percentage
+      const originalDebt = debts.find(debt => debt.id === reimbursementId);
+      const percentage = ((100 * income.amount) / originalDebt.amount) / 100;
+
+      amount = Math.floor(percentage * debtsOverride[reimbursementId]);
+    } else if (income.id in incomesOverride) {
       amount = incomesOverride[income.id];
     } else if (income.currency === 'USD') {
       // Calculate exchange

@@ -90,7 +90,8 @@ export const DebtFormModal = ({
           `
           *,
           reimbursement_income:incomes!left (
-            payer_id
+            payer_id,
+            amount
           )
         `,
         )
@@ -131,6 +132,9 @@ export const DebtFormModal = ({
         ...(existingDebt.reimbursement_income && {
           payerId: existingDebt.reimbursement_income.payer_id,
           hasReimbursement: true,
+          reimbursementPercentage:
+            (100 * existingDebt.reimbursement_income.amount) /
+            existingDebt.amount,
         }),
       });
     }
