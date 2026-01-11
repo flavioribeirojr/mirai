@@ -11,10 +11,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { PencilLine, Plus, Trash2 } from "lucide-react";
-import { format, addMonths } from "date-fns";
+import { format, addMonths, startOfMonth, endOfMonth } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useUserContext } from "@/hooks/useUser";
 import {
@@ -112,6 +111,25 @@ export default function Incomes() {
       return data;
     },
   });
+  const { data: existingCycle } = useQuery({
+    queryKey: ["get-current-cycle"],
+    queryFn: async () => {
+      const currentDate = new Date();
+      const startDate = startOfMonth(currentDate);
+      const endDate = endOfMonth(currentDate);
+      const { data, error } = await supabaseClient
+        .from("materialized_cycles")
+        .select()
+        .gte("date", format(startDate, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"));
+
+      if (error) {
+        throw error;
+      }
+
+      return data[0];
+    },
+  });
   const incomePayers = useMemo(() => {
     if (!incomePayersData) return [];
 
@@ -200,27 +218,46 @@ export default function Incomes() {
         title: "Error",
         description: error.message,
       });
-    } else {
-      toast({ title: "Success", description: "Income added successfully" });
-      refetchIncomes();
-      setIsIncomeModalOpen(false);
-      setEditIncomeId(null);
+      return;
     }
+
+    if (values.syncWithExistingCycle && existingCycle) {
+      const amount =
+        values.currency === "USD" && values.syncExistingCycleAmout
+          ? values.syncExistingCycleAmout
+          : values.amount;
+      await supabaseClient.from("materialized_incomes").upsert(
+        {
+          cycle_id: existingCycle.id,
+          income_id: editIncomeId,
+          amount: toCents(amount),
+        },
+        { onConflict: "income_id, cycle_id", ignoreDuplicates: false },
+      );
+    }
+
+    toast({ title: "Success", description: "Income added successfully" });
+    refetchIncomes();
+    setIsIncomeModalOpen(false);
+    setEditIncomeId(null);
   }
 
   async function addIncome(values: IncomeFormValues) {
     if (!user) return;
 
-    const { error } = await supabaseClient.from("incomes").insert({
-      workspace_id: user.workspace_id,
-      payer_id: values.payerId,
-      name: values.name,
-      amount: toCents(values.amount),
-      currency: values.currency,
-      is_recurrent: values.isRecurrent,
-      number_of_payments: values.isRecurrent ? 1 : values.numberOfPayments,
-      first_income_date: format(values.firstIncomeDate, "yyyy-MM-dd"),
-    });
+    const { error, data: createdIncome } = await supabaseClient
+      .from("incomes")
+      .insert({
+        workspace_id: user.workspace_id,
+        payer_id: values.payerId,
+        name: values.name,
+        amount: toCents(values.amount),
+        currency: values.currency,
+        is_recurrent: values.isRecurrent,
+        number_of_payments: values.isRecurrent ? 1 : values.numberOfPayments,
+        first_income_date: format(values.firstIncomeDate, "yyyy-MM-dd"),
+      })
+      .select("id");
 
     if (error) {
       toast({
@@ -228,11 +265,24 @@ export default function Incomes() {
         title: "Error",
         description: error.message,
       });
-    } else {
-      toast({ title: "Success", description: "Income added successfully" });
-      refetchIncomes();
-      setIsIncomeModalOpen(false);
+      return;
     }
+
+    if (values.syncWithExistingCycle && existingCycle) {
+      const amount =
+        values.currency === "USD" && values.syncExistingCycleAmout
+          ? values.syncExistingCycleAmout
+          : values.amount;
+      await supabaseClient.from("materialized_incomes").insert({
+        cycle_id: existingCycle.id,
+        income_id: createdIncome[0].id,
+        amount: toCents(amount),
+      });
+    }
+
+    toast({ title: "Success", description: "Income added successfully" });
+    refetchIncomes();
+    setIsIncomeModalOpen(false);
   }
 
   return (
@@ -287,6 +337,7 @@ export default function Incomes() {
             onOpenChanged={setIsIncomeModalOpen}
             incomePayers={incomePayers}
             onSubmit={addOrUpdateIncome}
+            showSyncCycleSwitch={!!existingCycle}
           />
         </div>
       </div>

@@ -333,7 +333,7 @@ export type Database = {
           cycle_id: string
           id: string
           income_id: string
-          status: string
+          status: string | null
         }
         Insert: {
           amount: number
@@ -341,7 +341,7 @@ export type Database = {
           cycle_id?: string
           id?: string
           income_id?: string
-          status: string
+          status?: string | null
         }
         Update: {
           amount?: number
@@ -349,7 +349,7 @@ export type Database = {
           cycle_id?: string
           id?: string
           income_id?: string
-          status?: string
+          status?: string | null
         }
         Relationships: [
           {

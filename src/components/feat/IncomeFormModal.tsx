@@ -14,8 +14,15 @@ import { useForm } from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabaseClient } from "@/integrations/supabase/client";
 import { useUserContext } from "@/hooks/useUser";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { centsToRealAmountNotFormatted } from "@/lib/utils";
+import {
+  addMonths,
+  isAfter,
+  isBefore,
+  isSameDay,
+  startOfMonth,
+} from "date-fns";
 
 export type FormValues = {
   payerId: string;
@@ -25,6 +32,8 @@ export type FormValues = {
   isRecurrent: boolean;
   numberOfPayments: number;
   firstIncomeDate: string;
+  syncWithExistingCycle?: boolean;
+  syncExistingCycleAmout?: number;
 };
 
 type Props = {
@@ -37,6 +46,7 @@ type Props = {
     name: string;
     type: string;
   }[];
+  showSyncCycleSwitch?: boolean;
 };
 
 export function IncomeFormModal(props: Props) {
@@ -86,6 +96,45 @@ export function IncomeFormModal(props: Props) {
       form.reset();
     }
   }, [props.incomeId, form]);
+
+  const syncWithCurrentCycle = form.watch("syncWithExistingCycle");
+  const firstIncomeDate = form.watch("firstIncomeDate");
+  const numberOfPaymentDates = form.watch("numberOfPayments");
+  const hasEndDate = !form.watch("isRecurrent");
+
+  const isIncomeEligibleForSyncWithCurrentCycle = useMemo(() => {
+    // Income is eligible for sync if any of these match:
+    // 1) First income date is current month
+    // 2) First income date is <= current month but end date is >= current month
+    // 3) First income date is <= current month but there is no end date
+    const todayStartOfMonth = startOfMonth(new Date());
+    const firstIncomeDateStartOfMonth = startOfMonth(firstIncomeDate);
+    const endDate = addMonths(
+      firstIncomeDateStartOfMonth,
+      numberOfPaymentDates,
+    );
+
+    const firstIncomeDateIsCurrentDate = isSameDay(
+      todayStartOfMonth,
+      firstIncomeDateStartOfMonth,
+    );
+
+    const firstIncomeDateIsBeforeCurrentMonth = isBefore(
+      firstIncomeDateStartOfMonth,
+      todayStartOfMonth,
+    );
+    const endDateIsSameOrBeforeCurrentMonth =
+      isSameDay(endDate, todayStartOfMonth) ||
+      isAfter(endDate, todayStartOfMonth);
+
+    return (
+      firstIncomeDateIsCurrentDate ||
+      (firstIncomeDateIsBeforeCurrentMonth &&
+        endDateIsSameOrBeforeCurrentMonth) ||
+      (firstIncomeDateIsBeforeCurrentMonth && !hasEndDate)
+    );
+  }, [firstIncomeDate, numberOfPaymentDates, hasEndDate]);
+  const currency = form.watch("currency");
 
   return (
     <Dialog open={props.isOpen} onOpenChange={props.onOpenChanged}>
@@ -199,6 +248,38 @@ export function IncomeFormModal(props: Props) {
               })}
             />
           </div>
+          {props.showSyncCycleSwitch &&
+            isIncomeEligibleForSyncWithCurrentCycle && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={syncWithCurrentCycle}
+                      onCheckedChange={(checked) =>
+                        form.setValue("syncWithExistingCycle", checked)
+                      }
+                    />
+                    <Label className="cursor-pointer">Sync current cycle</Label>
+                  </div>
+                </div>
+                {currency === "USD" && syncWithCurrentCycle && (
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Value for current cycle</Label>
+                    <Input
+                      id="syncExistingCycleAmout"
+                      name="syncExistingCycleAmout"
+                      type="number"
+                      step="0.01"
+                      {...form.register("syncExistingCycleAmout", {
+                        required: true,
+                        min: 0,
+                        valueAsNumber: true,
+                      })}
+                    />
+                  </div>
+                )}
+              </>
+            )}
           <Button type="submit" className="w-full">
             {props.incomeId ? "Update Income" : "Add Income"}
           </Button>
