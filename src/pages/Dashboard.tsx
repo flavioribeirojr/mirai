@@ -43,9 +43,11 @@ import { useSupabaseFunction } from "@/hooks/useSupabaseFunction";
 import { Spinner } from "@/components/ui/spinner";
 import { CycleStatusToggler } from "@/components/feat/CycleStatusToggler";
 import { Database } from "@/integrations/supabase/database.types";
+import { CycleEditableAmount } from "@/components/feat/CycleEditableAmount";
 
 type DashboardIncome = {
   id: string;
+  materializedIncomeId?: string;
   currency: string;
   amount: number; // In cents
   name: string;
@@ -59,12 +61,14 @@ type DashboardIncome = {
 
 type DashboardDebt = {
   id: string;
+  materializedDebtId?: string;
   name: string;
   amount: number; // In cents
   installments: number;
   installment_number?: number;
   status: string;
   type: Database["public"]["Enums"]["DebtType"];
+  hasEnd: boolean;
   owner: {
     id: string;
     name: string;
@@ -289,7 +293,8 @@ export default function Dashboard() {
         const installmentNumber =
           differenceInCalendarMonths(cycleDate, firstPaymentDate) + 1;
         return {
-          id: matDebt.id,
+          id: matDebt.id, // TODO: Make this be the original debt id
+          materializedDebtId: matDebt.id,
           name: matDebt.original_debt.name,
           amount: matDebt.amount,
           status: matDebt.status,
@@ -306,7 +311,8 @@ export default function Dashboard() {
     );
     const mappedIncomes = cycle.materialized_incomes.map<DashboardIncome>(
       (matIncome) => ({
-        id: matIncome.id,
+        id: matIncome.id, // TODO: make this be original income id
+        materializedIncomeId: matIncome.id,
         name: matIncome.original_income.name,
         amount: matIncome.amount,
         currency: "BRL",
@@ -334,7 +340,10 @@ export default function Dashboard() {
       date: new Date(cycle.date),
       debts: mappedDebts,
       incomes: mappedIncomes,
-      expenses: cycle.expenses,
+      expenses: cycle.expenses.map((expense) => ({
+        ...expense,
+        date: new Date(`${expense.date} 08:00`),
+      })),
       type: "materialized",
       totalDebts: totalDebts,
       totalIncomes: totalIncomes,
@@ -730,6 +739,54 @@ export default function Dashboard() {
     return cycleData.debts.filter((debt) => debt.type === "VARIABLE");
   }, [cycleData]);
 
+  async function editMaterializedIncomeAmount(
+    income: DashboardIncome,
+    amount: number,
+  ) {
+    if (!income.materializedIncomeId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Confirm update to ${income.name}(${income.payer.name})?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    await supabase
+      .from("materialized_incomes")
+      .update({
+        amount: toCents(amount),
+      })
+      .eq("id", income.id);
+  }
+
+  async function editMaterializedDebtAmount(
+    debt: DashboardDebt,
+    amount: number,
+  ) {
+    if (!debt.materializedDebtId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Confirm update to ${debt.name}(${debt.owner.name})?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    await supabase
+      .from("materialized_debts")
+      .update({
+        amount: toCents(amount),
+      })
+      .eq("id", debt.id);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -958,13 +1015,13 @@ export default function Dashboard() {
                             )}
                           </span>
                         </div>
-                        <Badge
-                          variant={
-                            debt.status === "paid" ? "default" : "secondary"
-                          }
-                        >
-                          R$ {centsToRealAmount(debt.amount)}
-                        </Badge>
+                        <CycleEditableAmount
+                          amount={debt.amount}
+                          editIsAllowed={cycleData?.type === "materialized"}
+                          onEditConfirmed={(amount) => {
+                            editMaterializedDebtAmount(debt, amount);
+                          }}
+                        />
                       </div>
                     ))}
                   </div>
@@ -1027,13 +1084,13 @@ export default function Dashboard() {
                             {income.name} ({income.currency})
                           </span>
                         </div>
-                        <Badge
-                          variant={
-                            income.status === "paid" ? "default" : "secondary"
-                          }
-                        >
-                          R$ {centsToRealAmount(income.amount)}
-                        </Badge>
+                        <CycleEditableAmount
+                          amount={income.amount}
+                          editIsAllowed={cycleData?.type === "materialized"}
+                          onEditConfirmed={(amount) => {
+                            editMaterializedIncomeAmount(income, amount);
+                          }}
+                        />
                       </div>
                     ))}
                   </div>
