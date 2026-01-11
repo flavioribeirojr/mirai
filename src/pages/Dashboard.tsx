@@ -340,7 +340,10 @@ export default function Dashboard() {
       date: new Date(cycle.date),
       debts: mappedDebts,
       incomes: mappedIncomes,
-      expenses: cycle.expenses,
+      expenses: cycle.expenses.map((expense) => ({
+        ...expense,
+        date: new Date(`${expense.date} 08:00`),
+      })),
       type: "materialized",
       totalDebts: totalDebts,
       totalIncomes: totalIncomes,
